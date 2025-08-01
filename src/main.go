@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
+	bot "wikiBot/src/bot"
 )
 
 func main() {
-	fmt.Println("This is a go program")
+	bot.BotToken = ""
+	bot.Run() // simply call for the bot to be ran
 
 }
