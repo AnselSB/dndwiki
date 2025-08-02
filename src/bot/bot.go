@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"wikiBot/src/rest"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -20,7 +21,6 @@ func checkNilErr(e error) {
 
 func Run() {
 	// first make the session with discord
-	fmt.Printf("BotTOKEN: %v\n", BotToken)
 	discord, err := discordgo.New("Bot " + BotToken)
 	checkNilErr(err)
 
@@ -39,6 +39,7 @@ func Run() {
 
 }
 
+// TODO: for spell check that an argument is given
 // this will be the main event handler function, most of what this bot will do is recieve and send messages, it doesn't need to do anything super fancy
 // once I get this out of testing phase I'll probably make a new package that will hold the different logic for each functionality, one for magic searching
 func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
@@ -46,11 +47,18 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	if message.Author.ID == discord.State.User.ID {
 		return
 	}
-	// respond to the user message if it contains the words !hello or !magic, don't love contains here I might change this so that it will only trigger if it's at the beginning of the string, could do it through regex but we'll see
-	switch {
-	case strings.Contains(message.Content, "!hello"):
+	// split the message and compare to see if the first substring in the message matches the command in the switch statement
+	splitMsg := strings.Split(message.Content, " ")
+
+	switch splitMsg[0] {
+	case "!hello":
 		discord.ChannelMessageSend(message.ChannelID, "My balls itch")
-	case strings.Contains(message.Content, "!spell"):
-		discord.ChannelMessageSend(message.ChannelID, "This command doesn't do anything yet because Ansel is a lazy fuck")
+	case "!spell":
+		embed, err := rest.GetSpell(splitMsg[1])
+		if err != nil {
+			discord.ChannelMessageSend(message.ChannelID, "Error fetching spell, make sure to check spelling")
+			return
+		}
+		discord.ChannelMessageSendEmbed(message.ChannelID, embed)
 	}
 }
