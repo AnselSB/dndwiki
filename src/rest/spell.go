@@ -99,6 +99,11 @@ func GetSpell(spell string) (*discordgo.MessageEmbed, error) {
 				Value:  formattedClasses,
 				Inline: false,
 			},
+			{
+				Name:   "Ritual",
+				Value:  strconv.FormatBool(spellEntity.Ritual),
+				Inline: false,
+			},
 		},
 	}
 
