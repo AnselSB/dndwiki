@@ -24,6 +24,7 @@ type Spell struct {
 	SpellDamage   Damage      `json:"damage"`
 	School        MagicSchool `json:"school"`
 	Classes       []Class     `json:"classes"`
+	Material      string      `json:"material"`
 }
 
 type MagicSchool struct {
@@ -55,6 +56,10 @@ func GetSpell(spell string) (*discordgo.MessageEmbed, error) {
 	formattedDesc := formatMultiValues(spellEntity.Desc)
 	formattedComponents := formatComponents(spellEntity.Components)
 	formattedClasses := formatClassValues(spellEntity.Classes)
+
+	if strings.Contains(formattedComponents, "M") {
+		formattedComponents = fmt.Sprintf("%v (%v)", formattedComponents, spellEntity.Material)
+	}
 
 	fullDesc := formattedDesc + "\n" + formattedHigherLevel
 

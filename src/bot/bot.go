@@ -54,6 +54,10 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	case "!hello":
 		discord.ChannelMessageSend(message.ChannelID, "My balls itch")
 	case "!spell":
+		if len(splitMsg) < 2 {
+			discord.ChannelMessageSend(message.ChannelID, "Please provide a spell you wish to search for")
+			return
+		}
 		embed, err := rest.GetSpell(splitMsg[1])
 		if err != nil {
 			discord.ChannelMessageSend(message.ChannelID, "Error fetching spell, make sure to check spelling")
