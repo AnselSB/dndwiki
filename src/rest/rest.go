@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,6 +39,10 @@ func makeRequest(endpointURL string) ([]byte, error) {
 		fmt.Println("There was an error in making the request")
 		return nil, err
 	}
+	if res.StatusCode != 200 {
+		fmt.Printf("Returned %v\n", res.StatusCode)
+		return nil, errors.New("did not return 200 from request")
+	}
 
 	defer res.Body.Close()
 
@@ -47,9 +52,9 @@ func makeRequest(endpointURL string) ([]byte, error) {
 		return nil, err
 	}
 	// now when we have this body we write to the cache with the endpoint url
-	writeErr := cache.SetObject(endpointURL, body)
-	if writeErr != nil {
-		fmt.Printf("An Error occurred while trying to write to the cache: %v\n", writeErr)
+	err = cache.SetObject(endpointURL, body)
+	if err != nil {
+		fmt.Printf("An Error occurred while trying to write to the cache: %v\n", err)
 	}
 	return body, nil
 

@@ -72,5 +72,16 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 		}
 		channelMsg := cache.SetDirectory(splitMsg[1])
 		discord.ChannelMessageSend(message.ChannelID, channelMsg)
+	case "!mitem":
+		if len(splitMsg) < 2 {
+			discord.ChannelMessageSend(message.ChannelID, "Please provide a magic item you wish to search for")
+			return
+		}
+		embed, err := rest.GetMagicItem(splitMsg[1])
+		if err != nil {
+			discord.ChannelMessageSend(message.ChannelID, "Error fetching magic item, make sure to check spelling")
+			return
+		}
+		discord.ChannelMessageSendEmbed(message.ChannelID, embed)
 	}
 }

@@ -15,3 +15,17 @@ type DamageAtCharacterLevel struct {
 	Eleventh    string `json:"11"`
 	Seventeenth string `json:"17"`
 }
+
+type EquipmentCategory struct {
+	Index string `json:"index"`
+	Name  string `json:"name"`
+	url   string `json"url"`
+}
+
+type Rarity struct {
+	Name string `json:"name"`
+}
+
+type Variant struct {
+	Name string `json:"name"`
+}
