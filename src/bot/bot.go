@@ -50,7 +50,7 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	}
 	// split the message and compare to see if the first substring in the message matches the command in the switch statement
 	splitMsg := strings.Split(message.Content, " ")
-
+	fmt.Println("Huh")
 	switch splitMsg[0] {
 	case "!hello":
 		discord.ChannelMessageSend(message.ChannelID, "My balls itch")
