@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"wikiBot/src/cache"
 	"wikiBot/src/rest"
 
 	"github.com/bwmarrin/discordgo"
@@ -64,5 +65,12 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 			return
 		}
 		discord.ChannelMessageSendEmbed(message.ChannelID, embed)
+	case "!cache":
+		if len(splitMsg) < 2 {
+			discord.ChannelMessageSend(message.ChannelID, "Please provide a name for new cache entry")
+			return
+		}
+		channelMsg := cache.SetDirectory(splitMsg[1])
+		discord.ChannelMessageSend(message.ChannelID, channelMsg)
 	}
 }
