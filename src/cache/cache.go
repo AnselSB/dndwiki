@@ -27,7 +27,6 @@ func SetObject(filePath string, contents []byte) error {
 	fullPath := fmt.Sprintf("public/cache/%v.json", filePath)
 	file, err := os.Create(fullPath)
 	if err != nil {
-		fmt.Println("Creation error")
 		return err
 	}
 	defer file.Close()
@@ -37,4 +36,20 @@ func SetObject(filePath string, contents []byte) error {
 		return err
 	}
 	return nil
+}
+
+func SetDirectory(dirName string) string {
+	// first attempt to create the path based on the passed directory name
+	fullPath := fmt.Sprintf("public/cache/%v", dirName)
+	err := os.Mkdir(fullPath, 0755)
+	if err != nil {
+		return "Error occurred making new cache. Check directory name inputted"
+	}
+	// make a .gitkeep file so the directory shows in git
+	file, err := os.Create(fullPath + "/.gitkeep")
+	if err != nil {
+		return "unable to keep directory in git"
+	}
+	defer file.Close()
+	return "Successfully made new cache entry!"
 }
