@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"wikiBot/src/cache"
 	"wikiBot/src/rest"
 
@@ -20,16 +19,176 @@ func checkNilErr(e error) {
 	}
 }
 
+// gonna try and set up the slash command for hello
+var (
+	dmPermission                   = true
+	defaultMemberPermissions int64 = discordgo.PermissionAll
+	adminUserPermissions     int64 = discordgo.PermissionAdministrator
+	commands                       = []*discordgo.ApplicationCommand{
+		{
+			Name:                     "hello",
+			Description:              "Say hello to wikibot",
+			DefaultMemberPermissions: &defaultMemberPermissions,
+			DMPermission:             &dmPermission,
+		},
+		{
+			Name:                     "spell",
+			Description:              "search for a spell description in the format spell-name",
+			DefaultMemberPermissions: &defaultMemberPermissions,
+			DMPermission:             &dmPermission,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "spell-name",
+					Description: "Spell Name",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Name:                     "cache",
+			Description:              "create a new cache directory, generally only for development purposes",
+			DefaultMemberPermissions: &adminUserPermissions,
+			DMPermission:             &dmPermission,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "cache-name",
+					Description: "cache Name",
+					Required:    true,
+				},
+			},
+		},
+		{
+			Name:                     "mitem",
+			Description:              "search for a magic item description in the format item-name",
+			DefaultMemberPermissions: &defaultMemberPermissions,
+			DMPermission:             &dmPermission,
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "item-name",
+					Description: "Item Name",
+					Required:    true,
+				},
+			},
+		},
+	}
+	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+		"hello": hello,
+		"spell": spell,
+		"cache": makeCache,
+		"mitem": mitem,
+	}
+)
+
+func mitem(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	options := i.ApplicationCommandData().Options
+	if len(options) < 1 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "An item name was not supplied",
+			},
+		})
+	}
+	itemArg := options[0]
+	embed, err := rest.GetMagicItem(itemArg.StringValue())
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("Unable to find item '%v'", itemArg.StringValue()),
+			},
+		})
+	}
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embed},
+		},
+	})
+}
+
+func makeCache(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	options := i.ApplicationCommandData().Options
+	cmdMsg := cache.SetDirectory(options[0].StringValue())
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: cmdMsg,
+		},
+	})
+}
+func hello(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Content: "My balls itch",
+		},
+	})
+}
+
+func spell(s *discordgo.Session, i *discordgo.InteractionCreate) {
+
+	// first get the argument
+	options := i.ApplicationCommandData().Options
+	if len(options) < 1 {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "A spell was not supplied",
+			},
+		})
+	}
+	spellArg := options[0]
+	embed, err := rest.GetSpell(spellArg.StringValue())
+	if err != nil {
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: fmt.Sprintf("Unable to find spell '%v'", spellArg.StringValue()),
+			},
+		})
+	}
+	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Embeds: []*discordgo.MessageEmbed{embed},
+		},
+	})
+}
+
 func Run() {
 	// first make the session with discord
 	discord, err := discordgo.New("Bot " + BotToken)
 	checkNilErr(err)
 
-	// add an event handler for the bot, this event handler is a function that you pass in
-	discord.AddHandler(newMessage) // the function signature will determine what event handler you add
+	// add handler which will be called when ready
+	discord.AddHandler(func(s *discordgo.Session, r *discordgo.Ready) {
+		fmt.Printf("Logged in as: %v#%v\n", s.State.User.Username, s.State.User.Discriminator)
+	})
 
-	// open the session and defer a close to make sure things are closed properly
+	// add handler for slash command handling
+	discord.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
+			h(s, i)
+		}
+	})
+
+	// open the session and defer a close to make sure things are closed properly, also add the necessary commands
 	discord.Open()
+	fmt.Println("Adding slash commands...")
+	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
+	for index, value := range commands {
+		cmd, err := discord.ApplicationCommandCreate(discord.State.User.ID, "", value)
+
+		if err != nil {
+			fmt.Printf("Cannot create '%v' command: %v", value.Name, err)
+		}
+		registeredCommands[index] = cmd
+		fmt.Printf("Added %v\n", value.Name)
+	}
 	defer discord.Close()
 
 	// keep the bot running until there is an interruption by the user (which will most likely be me, this'll mean the bot will only be running when I decide it to be running, not really interested in hosting this on the cloud, too expensive for what this is)
@@ -38,50 +197,13 @@ func Run() {
 	signal.Notify(c, os.Interrupt)
 	<-c
 
-}
+	log.Println("Removing commands...")
 
-// TODO: for spell check that an argument is given
-// this will be the main event handler function, most of what this bot will do is recieve and send messages, it doesn't need to do anything super fancy
-// once I get this out of testing phase I'll probably make a new package that will hold the different logic for each functionality, one for magic searching
-func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
-	// first check to see we're responding to a user and not ourself
-	if message.Author.ID == discord.State.User.ID {
-		return
+	for _, v := range registeredCommands {
+		err := discord.ApplicationCommandDelete(discord.State.User.ID, "", v.ID)
+		if err != nil {
+			log.Panicf("Cannot delete '%v' command: %v", v.Name, err)
+		}
 	}
-	// split the message and compare to see if the first substring in the message matches the command in the switch statement
-	splitMsg := strings.Split(message.Content, " ")
 
-	switch splitMsg[0] {
-	case "!hello":
-		discord.ChannelMessageSend(message.ChannelID, "My balls itch")
-	case "!spell":
-		if len(splitMsg) < 2 {
-			discord.ChannelMessageSend(message.ChannelID, "Please provide a spell you wish to search for")
-			return
-		}
-		embed, err := rest.GetSpell(splitMsg[1])
-		if err != nil {
-			discord.ChannelMessageSend(message.ChannelID, "Error fetching spell, make sure to check spelling")
-			return
-		}
-		discord.ChannelMessageSendEmbed(message.ChannelID, embed)
-	case "!cache":
-		if len(splitMsg) < 2 {
-			discord.ChannelMessageSend(message.ChannelID, "Please provide a name for new cache entry")
-			return
-		}
-		channelMsg := cache.SetDirectory(splitMsg[1])
-		discord.ChannelMessageSend(message.ChannelID, channelMsg)
-	case "!mitem":
-		if len(splitMsg) < 2 {
-			discord.ChannelMessageSend(message.ChannelID, "Please provide a magic item you wish to search for")
-			return
-		}
-		embed, err := rest.GetMagicItem(splitMsg[1])
-		if err != nil {
-			discord.ChannelMessageSend(message.ChannelID, "Error fetching magic item, make sure to check spelling")
-			return
-		}
-		discord.ChannelMessageSendEmbed(message.ChannelID, embed)
-	}
 }
