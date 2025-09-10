@@ -13,6 +13,9 @@ import (
 )
 
 var BotToken string
+var DumpChannelID string
+var SpellFormURL string
+var ItemFormURL string
 
 func checkNilErr(e error) {
 	if e != nil {
@@ -48,6 +51,30 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 	if message.Author.ID == discord.State.User.ID {
 		return
 	}
+	// check to see if we recieved an embed from the dump channel
+	if message.ChannelID == DumpChannelID {
+		// in the case where we're in the dump channel we now that we have the embed sent from the webhook
+		// so from there we send the embed over to the wrapping function to handle either case of spell or item
+		switch message.Embeds[0].Title {
+		case "Spell":
+			err := rest.AddSpell(message.Embeds[0])
+			if err != nil {
+				discord.ChannelMessageSend(message.ChannelID, "something went wrong with adding the spell")
+				return
+			}
+			discord.ChannelMessageSend(message.ChannelID, "addition of spell was successful")
+		case "Magic Item":
+			err := rest.AddItem(message.Embeds[0])
+			if err != nil {
+				fmt.Printf("ERROR: unable to add new item, %v", err.Error())
+				discord.ChannelMessageSend(message.ChannelID, "something went wrong with adding the magic item")
+				return
+			}
+			discord.ChannelMessageSend(message.ChannelID, "addition of magic item was successful")
+		}
+		return
+	}
+
 	// split the message and compare to see if the first substring in the message matches the command in the switch statement
 	splitMsg := strings.Split(message.Content, " ")
 
@@ -83,5 +110,9 @@ func newMessage(discord *discordgo.Session, message *discordgo.MessageCreate) {
 			return
 		}
 		discord.ChannelMessageSendEmbed(message.ChannelID, embed)
+	case "!addspell":
+		discord.ChannelMessageSend(message.ChannelID, fmt.Sprintf("Fill out the following form: %v note that it may take a little while for your added spell to be searchable.", SpellFormURL))
+	case "!additem":
+		discord.ChannelMessageSend(message.ChannelID, fmt.Sprintf("Fill out the following form: %v note that it may take a little while for your item to be searchable.", ItemFormURL))
 	}
 }
