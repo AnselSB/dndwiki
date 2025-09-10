@@ -19,6 +19,11 @@ func checkNilErr(e error) {
 	}
 }
 
+const (
+	spellVal = "1"
+	itemVal  = "2"
+)
+
 // gonna try and set up the slash command for hello
 var (
 	dmPermission                   = true
@@ -73,15 +78,69 @@ var (
 				},
 			},
 		},
+		{
+			Name:                     "add",
+			Description:              "Add a new item to the database",
+			DefaultMemberPermissions: &defaultMemberPermissions,
+			DMPermission:             &dmPermission,
+			Options: []*discordgo.ApplicationCommandOption{
+
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "add-option",
+					Description: "What type of item would you like to add?",
+					Required:    true,
+					Choices: []*discordgo.ApplicationCommandOptionChoice{
+						{
+							Name:  "spell",
+							Value: "1",
+						},
+						{
+							Name:  "magic item",
+							Value: "2",
+						},
+					},
+				},
+			},
+		},
 	}
 	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
 		"hello": hello,
 		"spell": spell,
 		"cache": makeCache,
 		"mitem": mitem,
+		"add":   add,
 	}
 )
 
+func add(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	options := i.ApplicationCommandData().Options[0].StringValue()
+	fmt.Printf("OPTION NAME: %v\n", options)
+	switch options {
+	case spellVal:
+		err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: spellModal(i),
+		})
+		if err != nil {
+			fmt.Printf("HUGE ERROR: %v\n", err)
+		}
+	case itemVal:
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "magic item was chosen",
+			},
+		})
+	default:
+		s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{
+				Content: "Something horribly wrong has gone down here",
+			},
+		})
+	}
+}
 func mitem(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	options := i.ApplicationCommandData().Options
 	if len(options) < 1 {
