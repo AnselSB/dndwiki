@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"wikiBot/src/cache"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -76,4 +77,45 @@ func formatVariants(values []Variant) string {
 		}
 	}
 	return builder.String()
+}
+
+func AddItem(itemEmbed *discordgo.MessageEmbed) error {
+	// first start by defining all the properties we'll need to set
+	var itemName string
+	var itemFileName string
+	var equipmentCategory EquipmentCategory
+	var itemRarity Rarity
+	itemVariants := make([]Variant, 0)
+	itemDesc := make([]string, 0)
+
+	// set the fields, we now the order in this case so no need to loop
+	itemName = strings.ReplaceAll(itemEmbed.Fields[0].Value, "-", " ")
+	itemFileName = itemEmbed.Fields[0].Value
+	itemDesc = append(itemDesc, itemEmbed.Fields[1].Value)
+	equipmentCategory = EquipmentCategory{
+		Index: strings.ToLower(strings.ReplaceAll(itemEmbed.Fields[2].Value, " ", "-")),
+		Name:  itemEmbed.Fields[2].Value,
+	}
+	itemRarity = Rarity{Name: itemEmbed.Fields[3].Value}
+
+	// create the item entity
+	itemEntity := MagicItem{
+		Name:     itemName,
+		EquipCat: equipmentCategory,
+		Rarity:   itemRarity,
+		Variants: itemVariants,
+		Desc:     itemDesc,
+	}
+	// now try to encode the data
+	encodedItem, err := json.Marshal(itemEntity)
+	if err != nil {
+		fmt.Printf("There was an issue encoding the new item %v\n", itemName)
+		return err
+	}
+	err = cache.SetObject(fmt.Sprintf("magic-items/%v", itemFileName), encodedItem)
+
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"wikiBot/src/cache"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -104,6 +105,11 @@ func GetSpell(spell string) (*discordgo.MessageEmbed, error) {
 				Value:  strconv.FormatBool(spellEntity.Ritual),
 				Inline: false,
 			},
+			{
+				Name:   "Concentration",
+				Value:  strconv.FormatBool(spellEntity.Concentration),
+				Inline: false,
+			},
 		},
 	}
 
@@ -130,4 +136,92 @@ func formatComponents(values []string) string {
 		}
 	}
 	return builder.String()
+}
+
+func AddSpell(spellEmbed *discordgo.MessageEmbed) error {
+	// we know that this thing is a spell so what we gotta do is set up all the variables we need to define the spell
+	var spellFileName string
+	higherLevel := make([]string, 0)
+	var spellName string
+	desc := make([]string, 0)
+	var spellRange string
+	components := make([]string, 0)
+	var isRitual bool = false
+	var spellDuration string
+	var isConcentration bool = false
+	var castingTime string
+	var level int
+	// attacktype and damage we'll set as constant values for now
+	spellAttack := ""
+	spellDamage := Damage{DamageType: DamageType{Name: "damage"}, DamageAtCharacterLevel: DamageAtCharacterLevel{First: "1", Fifth: "5", Eleventh: "11", Seventeenth: "17"}}
+	spellSchool := MagicSchool{Name: "placeholder"}
+	spellClasses := make([]Class, 0)
+	var spellMaterial string
+
+	// now we loop through each field and set the according variable
+	for _, field := range spellEmbed.Fields {
+		// TODO: Fix this shit, make it into a look up table or something
+
+		if field.Name == "Spell Name" {
+			spellFileName = field.Value
+			spellName = strings.ReplaceAll(field.Value, "-", " ")
+		} else if field.Name == "Description" {
+			desc = append(desc, field.Value)
+		} else if field.Name == "Higher Level" {
+			higherLevel = append(higherLevel, field.Value)
+		} else if field.Name == "Range" {
+			spellRange = field.Value
+		} else if strings.Contains(field.Name, "Components") {
+			components = append(components, field.Value)
+		} else if field.Name == "Ritual" && field.Value == "yes" {
+			isRitual = true
+		} else if field.Name == "Concentration" && field.Value == "yes" {
+			isConcentration = true
+		} else if field.Name == "Casting time" {
+			castingTime = field.Value
+		} else if field.Name == "Level" {
+			parsedLevel, err := strconv.ParseInt(field.Value, 10, 64)
+			level = int(parsedLevel)
+			if err != nil {
+				fmt.Println("Error adding spell. Unable to parse spell level")
+				return err
+			}
+		} else if field.Name == "School" {
+			spellSchool.Name = field.Value
+		} else if strings.Contains(field.Name, "Classes") {
+			spellClasses = append(spellClasses, Class{Name: field.Value})
+		} else if field.Name == "Material" {
+			spellMaterial = field.Value
+		} else if field.Name == "Duration" {
+			spellDuration = field.Value
+		}
+	}
+	// once all properties are set we generate the spell instance and encode into json
+	newSpellEntity := Spell{
+		HigherLevel:   higherLevel,
+		Name:          spellName,
+		Desc:          desc,
+		Range:         spellRange,
+		Components:    components,
+		Ritual:        isRitual,
+		Duration:      spellDuration,
+		Concentration: isConcentration,
+		CastingTime:   castingTime,
+		Level:         level,
+		AttackType:    spellAttack,
+		SpellDamage:   spellDamage,
+		School:        spellSchool,
+		Classes:       spellClasses,
+		Material:      spellMaterial,
+	}
+	// now that the entity has been made we need to encode it into json
+	encodedSpell, err := json.Marshal(newSpellEntity)
+	if err != nil {
+		return err
+	}
+	err = cache.SetObject(fmt.Sprintf("spells/%v", spellFileName), encodedSpell)
+	if err != nil {
+		return err
+	}
+	return nil
 }
